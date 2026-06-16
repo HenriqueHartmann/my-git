@@ -1,1 +1,2 @@
 dir_path: "/absolute/path/to/your/target/directory"
+hash_algorithm: "insert your desired hash algorithm"

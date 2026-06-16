@@ -1,12 +1,17 @@
+import hashlib
+
 from exceptions import (
     ConfigFileNotFound,
     ConfigFieldIsEmpty,
+    FileNotFound,
+    FilePermissionError,
     MethodNotImplemented,
 )
 
 class Config:
     def __init__(self, config_dict: dict[str, str]):
         self._dir_path: str = self._field_from_dict(config_dict, "dir_path")
+        self._hash_algorithm: str = self._field_from_dict(config_dict, "hash_algorithm")
     
     @staticmethod
     def _field_from_dict(config_dict: dict[str, str], field_key: str) -> str:
@@ -20,6 +25,16 @@ class Config:
     @property
     def dir_path(self) -> str:
         return self._dir_path
+    
+    @property
+    def hash_algorithm(self) -> str:
+        return self._hash_algorithm
+
+
+class TreeEntry:
+    sha: str
+    index: int
+    path: str
 
 
 class Client:
@@ -38,10 +53,24 @@ class Client:
     def get_path(self):
         return self.config.dir_path
     
-    def diff(self):
+    def compute_file_hash(self, file_name: str):
+        file_absolute_path = f"{self.get_path()}/{file_name}"
+
+        try:
+            with open(file_absolute_path, "rb") as file:
+                digest = hashlib.file_digest(file, self.config.hash_algorithm)
+        except FileNotFoundError:
+            raise FileNotFound(file_absolute_path)
+        except PermissionError:
+            raise FilePermissionError(file_absolute_path)
+
+        file_hash = digest.hexdigest()
+        return file_hash
+    
+    def add(self):
         raise MethodNotImplemented()
 
-    def add(self):
+    def diff(self):
         raise MethodNotImplemented()
 
     def stash(self):
