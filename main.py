@@ -1,10 +1,16 @@
 import hashlib
+import uuid
+
+from pathlib import Path
 
 from exceptions import (
     ConfigFileNotFound,
     ConfigFieldIsEmpty,
     FileNotFound,
     FilePermissionError,
+    DirectoryNotFound,
+    DirectoryPermissionError,
+    OperationalSystemError,
     MethodNotImplemented,
 )
 
@@ -32,6 +38,7 @@ class Config:
 
 
 class TreeEntry:
+    id: str
     sha: str
     index: int
     path: str
@@ -53,21 +60,58 @@ class Client:
     def get_path(self):
         return self.config.dir_path
     
-    def compute_file_hash(self, file_name: str):
-        file_absolute_path = f"{self.get_path()}/{file_name}"
+    def _get_file_path(self, file_path: str) -> Path:
+        absolute_path = Path(self.get_path()) / file_path
 
         try:
-            with open(file_absolute_path, "rb") as file:
-                digest = hashlib.file_digest(file, self.config.hash_algorithm)
-        except FileNotFoundError:
-            raise FileNotFound(file_absolute_path)
-        except PermissionError:
-            raise FilePermissionError(file_absolute_path)
+            if not absolute_path.is_file():
+                raise FileNotFound(str(absolute_path))
 
-        file_hash = digest.hexdigest()
-        return file_hash
+            return absolute_path
+
+        except PermissionError:
+            raise FilePermissionError(str(absolute_path))
+        except OSError as exc:
+            raise OperationalSystemError(str(exc))
     
-    def add(self):
+    def compute_file_hash(self, file_path: str):
+        path = self._get_file_path(file_path)
+
+        with path.open("rb") as file:
+            digest = hashlib.file_digest(file, self.config.hash_algorithm)
+
+        return digest.hexdigest()
+    
+    def _get_directory(self) -> Path:
+        absolute_path = self.get_path()
+
+        try:
+            path = Path(absolute_path)
+
+            if not path.is_dir():
+                raise DirectoryNotFound(absolute_path)
+
+            return path
+
+        except PermissionError:
+            raise DirectoryPermissionError(absolute_path)
+        except OSError as exc:
+            raise OperationalSystemError(str(exc))
+
+
+    def status(self):
+        path = self._get_directory()
+
+        print("\nARQUIVOS:\n")
+        for entry in path.iterdir():
+            path_type = "file" if entry.is_file() else "dir"
+            print(f"{path_type} - {entry.name}")
+
+    
+    def add(self, file_path):
+        change_uuid = uuid.uuid7()
+        file_hash = self.compute_file_hash(self, file_path)
+
         raise MethodNotImplemented()
 
     def diff(self):
