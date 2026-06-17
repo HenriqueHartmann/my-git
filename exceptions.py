@@ -2,8 +2,7 @@ class ConfigFileNotFound(Exception):
     code = "CONFIG_FILE_NOT_FOUND"
 
     def __init__(self):
-        self.message = "Config file (config.yml) was not found"
-        super().__init__(self.message)
+        super().__init__("Config file (config.yml) was not found")
 
 
 class ConfigFieldIsEmpty(Exception):
@@ -11,8 +10,7 @@ class ConfigFieldIsEmpty(Exception):
 
     def __init__(self, field: str):
         self.field = field
-        self.message = f"{field} is empty"
-        super().__init__(self.message)
+        super().__init__(f"{field} is empty")
 
 
 class FileNotFound(Exception):
@@ -20,8 +18,7 @@ class FileNotFound(Exception):
 
     def __init__(self, file_with_path: str):
         self.file_with_path = file_with_path
-        self.message = f"File not found: {self.file_with_path}"
-        super().__init__(self.message)
+        super().__init__(f"File not found: {file_with_path}")
 
 
 class FilePermissionError(Exception):
@@ -29,13 +26,34 @@ class FilePermissionError(Exception):
 
     def __init__(self, file_with_path: str):
         self.file_with_path = file_with_path
-        self.message = f"Permission denied for file: {self.file_with_path}"
-        super().__init__(self.message)
+        super().__init__(f"Permission denied for file: {file_with_path}")
+
+
+class DirectoryNotFound(Exception):
+    code = "DIRECTORY_NOT_FOUND"
+
+    def __init__(self, dir_with_path: str):
+        self.dir_with_path = dir_with_path
+        super().__init__(f"Directory not found: {dir_with_path}")
+
+
+class DirectoryPermissionError(Exception):
+    code = "DIRECTORY_PERMISSION_ERROR"
+
+    def __init__(self, dir_with_path: str):
+        self.dir_with_path = dir_with_path
+        super().__init__(f"Permission denied for directory: {dir_with_path}")
+
+
+class OperationalSystemError(Exception):
+    code = "OPERATIONAL_SYSTEM_ERROR"
+
+    def __init__(self, message: str = "Operational system error"):
+        super().__init__(message)
 
 
 class MethodNotImplemented(Exception):
-    code = 'METHOD_NOT_IMPLEMENTED'
+    code = "METHOD_NOT_IMPLEMENTED"
 
     def __init__(self):
-        self.message = "Method not implemented"
-        super().__init__(self.message)
+        super().__init__("Method not implemented")
