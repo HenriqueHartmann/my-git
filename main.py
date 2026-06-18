@@ -103,9 +103,9 @@ class Client:
         path = self._get_directory()
 
         print("\nARQUIVOS:\n")
-        for entry in path.iterdir():
-            path_type = "file" if entry.is_file() else "dir"
-            print(f"{path_type} - {entry.name}")
+        for file in path.rglob('*'):
+            if file.is_file():
+                print(f"file - {file.name}")
 
     
     def add(self, file_path):
