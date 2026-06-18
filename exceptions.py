@@ -29,6 +29,17 @@ class FilePermissionError(Exception):
         super().__init__(f"Permission denied for file: {file_with_path}")
 
 
+class FileExtensionNotSupportedError(Exception):
+    code = "FILE_EXTENSION_NOT_SUPPORTED_ERROR"
+
+    def __init__(self, file_with_path: str, extension: str):
+        self.file_with_path = file_with_path
+        self.extension = extension
+        super().__init__(
+            f"File extension '{extension}' is not supported: {file_with_path}"
+        ) 
+
+
 class DirectoryNotFound(Exception):
     code = "DIRECTORY_NOT_FOUND"
 
