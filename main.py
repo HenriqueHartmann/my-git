@@ -1,3 +1,4 @@
+import csv
 import hashlib
 import uuid
 
@@ -8,6 +9,7 @@ from exceptions import (
     ConfigFieldIsEmpty,
     FileNotFound,
     FilePermissionError,
+    FileExtensionNotSupportedError,
     DirectoryNotFound,
     DirectoryPermissionError,
     OperationalSystemError,
@@ -15,26 +17,61 @@ from exceptions import (
 )
 
 class Config:
+    INDEX_FILE_EXTENSION = ".csv"
+    INDEX_FILE_CSV_DELIMITER = ";"
+    INDEX_ENCODING = "utf-8"
+
+
     def __init__(self, config_dict: dict[str, str]):
-        self._dir_path: str = self._field_from_dict(config_dict, "dir_path")
-        self._hash_algorithm: str = self._field_from_dict(config_dict, "hash_algorithm")
+        self._dir_path = self._get_directory_field(self._field_from_dict(config_dict, "dir_path"))
+        self._hash_algorithm = self._field_from_dict(config_dict,"hash_algorithm",)
+        self._index = self._get_index_field(self._field_from_dict(config_dict, "index"))
     
     @staticmethod
     def _field_from_dict(config_dict: dict[str, str], field_key: str) -> str:
         value = config_dict.get(field_key)
 
         if value is None or not value.strip():
-           raise ConfigFieldIsEmpty(field_key)
+            raise ConfigFieldIsEmpty(field_key)
 
-        return value 
+        return value
+
+    @classmethod
+    def _get_directory_field(cls, value: str) -> Path:
+        return Path(value)
+
+    @classmethod
+    def _get_index_field(cls, value: str) -> Path:
+        path = Path(value)
+
+        try:
+            if not path.is_file():
+                raise FileNotFound(str(path))
+
+            if path.suffix.lower() != cls.INDEX_FILE_EXTENSION:
+                raise FileExtensionNotSupportedError(
+                    str(path),
+                    cls.INDEX_FILE_EXTENSION,
+                )
+
+            return path
+
+        except PermissionError:
+            raise FilePermissionError(str(path))
+        except OSError as exc:
+            raise OperationalSystemError(str(exc))
 
     @property
-    def dir_path(self) -> str:
+    def dir_path(self) -> Path:
         return self._dir_path
     
     @property
     def hash_algorithm(self) -> str:
         return self._hash_algorithm
+    
+    @property
+    def index(self) -> Path:
+        return self._index
 
 
 class TreeEntry:
@@ -74,7 +111,7 @@ class Client:
         except OSError as exc:
             raise OperationalSystemError(str(exc))
     
-    def compute_file_hash(self, file_path: str):
+    def _compute_file_hash(self, file_path: str):
         path = self._get_file_path(file_path)
 
         with path.open("rb") as file:
@@ -97,7 +134,24 @@ class Client:
             raise DirectoryPermissionError(absolute_path)
         except OSError as exc:
             raise OperationalSystemError(str(exc))
+    
+    def _filter_index(self, file_path: str):
+        try:
+            with open(self.config.index, mode="r", encoding=self.config.INDEX_ENCODING) as file:
+                reader = csv.DictReader(file, delimiter=self.config.INDEX_FILE_CSV_DELIMITER)
+                if not reader.fieldnames:
+                    return False
+                
+                print("CSV LINHAS")
+                for row in reader:
+                    print(row["path"])
+                    if row["path"] == file_path:
+                        print(row)
 
+        except PermissionError:
+            raise FilePermissionError(str(self.config.index))
+        except OSError as exc:
+            raise OperationalSystemError(str(exc))
 
     def status(self):
         path = self._get_directory()
@@ -107,8 +161,8 @@ class Client:
             if file.is_file():
                 print(f"file - {file.name}")
 
-    
-    def add(self, file_path):
+    def add(self, path):
+        # SEARCH FOR SIZE (BYTE) AND TIMESTAMP
         change_uuid = uuid.uuid7()
         file_hash = self.compute_file_hash(self, file_path)
 
