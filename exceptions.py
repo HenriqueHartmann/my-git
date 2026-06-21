@@ -63,6 +63,13 @@ class OperationalSystemError(Exception):
         super().__init__(message)
 
 
+class TimezoneNotFoundError(Exception):
+    code = "TIMEZONE_NOT_FOUND_ERROR"
+
+    def __init__(self, timezone: str):
+        super().__init__(f'Timezone "{timezone}" is not supported.')
+
+
 class MethodNotImplemented(Exception):
     code = "METHOD_NOT_IMPLEMENTED"
 

@@ -1,7 +1,10 @@
 import csv
 import hashlib
 import uuid
+import zoneinfo
 
+from dataclasses import asdict, dataclass
+from datetime import datetime
 from pathlib import Path
 
 from exceptions import (
@@ -13,6 +16,7 @@ from exceptions import (
     DirectoryNotFound,
     DirectoryPermissionError,
     OperationalSystemError,
+    TimezoneNotFoundError,
     MethodNotImplemented,
 )
 
@@ -26,6 +30,7 @@ class Config:
         self._dir_path = self._get_directory_field(self._field_from_dict(config_dict, "dir_path"))
         self._hash_algorithm = self._field_from_dict(config_dict,"hash_algorithm",)
         self._index = self._get_index_field(self._field_from_dict(config_dict, "index"))
+        self._timezone = self._get_timezone_field(self._field_from_dict(config_dict, "timezone"))
     
     @staticmethod
     def _field_from_dict(config_dict: dict[str, str], field_key: str) -> str:
@@ -60,6 +65,13 @@ class Config:
             raise FilePermissionError(str(path))
         except OSError as exc:
             raise OperationalSystemError(str(exc))
+    
+    @staticmethod
+    def _get_timezone_field(value: str) -> zoneinfo.ZoneInfo:
+        try:
+            return zoneinfo.ZoneInfo(value)
+        except zoneinfo.ZoneInfoNotFoundError:
+            raise TimezoneNotFoundError(value)
 
     @property
     def dir_path(self) -> Path:
@@ -72,13 +84,26 @@ class Config:
     @property
     def index(self) -> Path:
         return self._index
+    
+    @property
+    def timezone(self) -> zoneinfo.ZoneInfo:
+        return self._timezone
 
 
+@dataclass(frozen=True)
 class TreeEntry:
     id: str
     sha: str
     index: int
     path: str
+    timestamp: str
+    size: int
+
+    def get_datetime(self, timezone: zoneinfo.ZoneInfo) -> datetime | None:
+        if not self.timestamp:
+            return None
+
+        return datetime.fromisoformat(self.timestamp).replace(tzinfo=timezone)
 
 
 class Client:
@@ -141,12 +166,56 @@ class Client:
                 reader = csv.DictReader(file, delimiter=self.config.INDEX_FILE_CSV_DELIMITER)
                 if not reader.fieldnames:
                     return False
-                
-                print("CSV LINHAS")
+
                 for row in reader:
-                    print(row["path"])
                     if row["path"] == file_path:
                         print(row)
+
+        except PermissionError:
+            raise FilePermissionError(str(self.config.index))
+        except OSError as exc:
+            raise OperationalSystemError(str(exc))
+    
+    def _get_local_now(self):
+        return datetime.now(self.config.timezone)
+    
+    def _get_file_size(self, path: Path):
+        return path.stat().st_size
+    
+    def _index_ends_with_newline(self) -> bool:
+        with self.config.index.open("rb") as file:
+            try:
+                file.seek(-1, 2)
+            except OSError:
+                return True
+            return file.read(1) in (b"\n", b"\r")
+
+    def _write_index(self, entry: TreeEntry) -> None:
+        try:
+            file_exists = self.config.index.exists()
+            is_empty = not file_exists or self.config.index.stat().st_size == 0
+            needs_newline = not is_empty and not self._index_ends_with_newline()
+
+            with self.config.index.open(mode="a",encoding=self.config.INDEX_ENCODING,newline="") as file:
+                writer = csv.DictWriter(
+                    file,
+                    fieldnames=[
+                        "id",
+                        "sha",
+                        "index",
+                        "path",
+                        "timestamp",
+                        "size",
+                    ],
+                    delimiter=self.config.INDEX_FILE_CSV_DELIMITER,
+                )
+
+                if is_empty:
+                    writer.writeheader()
+                elif needs_newline:
+                    file.write("\r\n")
+
+                writer.writerow(asdict(entry))
 
         except PermissionError:
             raise FilePermissionError(str(self.config.index))
@@ -161,12 +230,29 @@ class Client:
             if file.is_file():
                 print(f"file - {file.name}")
 
-    def add(self, path):
-        # SEARCH FOR SIZE (BYTE) AND TIMESTAMP
-        change_uuid = uuid.uuid7()
-        file_hash = self.compute_file_hash(self, file_path)
+    def add(self, path: str):
+        file_path = self._get_file_path(path)
+        timestamp = self._get_local_now()
+        file_size = self._get_file_size(file_path)
 
-        raise MethodNotImplemented()
+        # TODO: Create search based on timestamp and file size
+        index = 0
+
+        id = uuid.uuid4()
+        file_hash = self._compute_file_hash(file_path)
+
+        entry = TreeEntry(
+            id=id,
+            sha=file_hash,
+            index=index,
+            path=file_path,
+            timestamp=timestamp,
+            size=file_size,
+        )
+
+        self._write_index(entry)
+
+        print('Adicionado no Index')
 
     def diff(self):
         raise MethodNotImplemented()
