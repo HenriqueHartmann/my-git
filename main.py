@@ -10,6 +10,7 @@ from pathlib import Path
 from exceptions import (
     ConfigFileNotFound,
     ConfigFieldIsEmpty,
+    IndexDictNotLoaded,
     FileNotFound,
     FilePermissionError,
     FileExtensionNotSupportedError,
@@ -109,6 +110,7 @@ class TreeEntry:
 class Client:
     def __init__(self):
         self.config: Config | None = None
+        self.index_dict: dict[str, TreeEntry] | None = None
 
         with open('config.yml') as config_file:
             import yaml
@@ -118,7 +120,20 @@ class Client:
                 raise ConfigFileNotFound()
 
             self.config = Config(config_dict)
-        
+
+        self.index_dict = {}
+
+        with open(self.config.index, mode="r", encoding=self.config.INDEX_ENCODING) as file:
+            reader = csv.DictReader(file, delimiter=self.config.INDEX_FILE_CSV_DELIMITER)
+
+            for row in reader:
+                path = row["path"]
+
+                if row["index"] == "-1":
+                    self.index_dict.pop(path, None)
+                else:
+                    self.index_dict[path] = TreeEntry(**row)
+
     def get_path(self):
         return self.config.dir_path
     
@@ -223,12 +238,25 @@ class Client:
             raise OperationalSystemError(str(exc))
 
     def status(self):
-        path = self._get_directory()
+        if self.index_dict is None:
+            raise IndexDictNotLoaded()
 
-        print("\nARQUIVOS:\n")
-        for file in path.rglob('*'):
-            if file.is_file():
-                print(f"file - {file.name}")
+        root = self._get_directory()
+
+        for file in root.rglob('*'):
+            if not file.is_file():
+                continue
+
+            relative_path = file.relative_to(root).as_posix()
+            index_entry = self.index_dict.get(str(file.resolve()))
+
+            if index_entry is None:
+                print(f"file - {relative_path} is Untracked")
+            else:
+                file_hash = self._compute_file_hash(str(file))
+
+                if file_hash != index_entry.sha:
+                    print(f"file - {relative_path} has changed")
 
     def add(self, path: str):
         file_path = self._get_file_path(path)

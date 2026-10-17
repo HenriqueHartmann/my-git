@@ -13,6 +13,12 @@ class ConfigFieldIsEmpty(Exception):
         super().__init__(f"{field} is empty")
 
 
+class IndexDictNotLoaded(Exception):
+    code = "INDEX_DICT_NOT_LOADED"
+
+    def __init__(self):
+        super().__init__("Index dictionary is not loaded")
+
 class FileNotFound(Exception):
     code = "FILE_NOT_FOUND"
 
