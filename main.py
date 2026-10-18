@@ -263,14 +263,15 @@ class Client:
         timestamp = self._get_local_now()
         file_size = self._get_file_size(file_path)
 
-        # TODO: Create search based on timestamp and file size
-        index = 0
+        previous_entry = self.index_dict.get(file_path)
+        index = int(previous_entry.index) + 1 if previous_entry else 0
 
-        id = uuid.uuid4()
+
+        entry_uuid = uuid.uuid4()
         file_hash = self._compute_file_hash(file_path)
 
         entry = TreeEntry(
-            id=id,
+            id=entry_uuid,
             sha=file_hash,
             index=index,
             path=file_path,
@@ -279,8 +280,9 @@ class Client:
         )
 
         self._write_index(entry)
+        self.index_dict[file_path] = entry
 
-        print('Adicionado no Index')
+        print(f"file - {file_path} added to index")
 
     def diff(self):
         raise MethodNotImplemented()
