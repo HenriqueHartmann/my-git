@@ -26,11 +26,12 @@ class Config:
     INDEX_FILE_CSV_DELIMITER = ";"
     INDEX_ENCODING = "utf-8"
 
-
     def __init__(self, config_dict: dict[str, str]):
         self._dir_path = self._get_directory_field(self._field_from_dict(config_dict, "dir_path"))
         self._hash_algorithm = self._field_from_dict(config_dict,"hash_algorithm",)
         self._index = self._get_index_field(self._field_from_dict(config_dict, "index"))
+        self._objects_path = self._get_directory_field(self._field_from_dict(config_dict, "objects_path"))
+        self._refs_path = self._get_directory_field(self._field_from_dict(config_dict, "refs_path"))
         self._timezone = self._get_timezone_field(self._field_from_dict(config_dict, "timezone"))
     
     @staticmethod
@@ -66,7 +67,7 @@ class Config:
             raise FilePermissionError(str(path))
         except OSError as exc:
             raise OperationalSystemError(str(exc))
-    
+
     @staticmethod
     def _get_timezone_field(value: str) -> zoneinfo.ZoneInfo:
         try:
@@ -85,7 +86,15 @@ class Config:
     @property
     def index(self) -> Path:
         return self._index
-    
+
+    @property
+    def objects_path(self) -> Path:
+        return self._objects_path
+
+    @property
+    def refs_path(self) -> Path:
+        return self._refs_path
+
     @property
     def timezone(self) -> zoneinfo.ZoneInfo:
         return self._timezone
@@ -134,11 +143,11 @@ class Client:
                 else:
                     self.index_dict[path] = TreeEntry(**row)
 
-    def get_path(self):
+    def _get_path(self):
         return self.config.dir_path
     
     def _get_file_path(self, file_path: str) -> Path:
-        absolute_path = Path(self.get_path()) / file_path
+        absolute_path = Path(self._get_path()) / file_path
 
         try:
             if not absolute_path.is_file():
@@ -158,9 +167,12 @@ class Client:
             digest = hashlib.file_digest(file, self.config.hash_algorithm)
 
         return digest.hexdigest()
+
+    def _compute_object_hash(self, object: bytes):
+        return hashlib.sha1(object).hexdigest()
     
     def _get_directory(self) -> Path:
-        absolute_path = self.get_path()
+        absolute_path = self._get_path()
 
         try:
             path = Path(absolute_path)
@@ -264,16 +276,32 @@ class Client:
         file_size = self._get_file_size(file_path)
 
         previous_entry = self.index_dict.get(file_path)
-        index = int(previous_entry.index) + 1 if previous_entry else 0
-
+        entry_index = int(previous_entry.index) + 1 if previous_entry else 0
 
         entry_uuid = uuid.uuid4()
-        file_hash = self._compute_file_hash(file_path)
+
+        with open(file_path, "rb") as file:
+                content_blob = file.read()
+
+        size = len(content_blob)
+        object_header = f"blob {size}".encode("utf-8") + b"\x00"
+        blob_object = object_header + content_blob
+        object_hash = self._compute_object_hash(blob_object)
+
+        object_path = Path(self.config.objects_path)
+        object_path_specific = object_path / object_hash[:2]
+        object_file_path = object_path_specific / object_hash[2:]
+
+        object_path_specific.mkdir(parents=True, exist_ok=True)
+
+        if not object_file_path.exists():
+            with open(object_file_path, "wb") as object_file:
+                object_file.write(blob_object)
 
         entry = TreeEntry(
             id=entry_uuid,
-            sha=file_hash,
-            index=index,
+            sha=object_hash,
+            index=entry_index,
             path=file_path,
             timestamp=timestamp,
             size=file_size,
@@ -284,11 +312,18 @@ class Client:
 
         print(f"file - {file_path} added to index")
 
-    def diff(self):
+    def commit(self, message: str):
+        # loop through index to identify files that have changed since the last commit
+        # recreate the directory structure
+        # store root directory hash
+        # check for last commit if it exists point that commit as the parent of the new commit else create a new commit with no parent
+        # store useful information like name, email, timestamp, and commit message
+        # create commit file and generate a unique commit hash
+        # update the commit reference with the new commit hash
+        raise MethodNotImplemented()
+
+    def diff(self, path: str):
         raise MethodNotImplemented()
 
     def stash(self):
-        raise MethodNotImplemented()
-
-    def commit(self):
         raise MethodNotImplemented()

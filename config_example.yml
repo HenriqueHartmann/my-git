@@ -1,4 +1,6 @@
 dir_path: "/absolute/path/to/your/target/directory"
 hash_algorithm: "insert your desired hash algorithm"
 index: "/relative/path/to/your/index/file"
+objects_path: "/relative/path/to/your/objects/directory"
+refs_path: "/relative/path/to/your/refs/file"
 timezone: "preferred timezone"
